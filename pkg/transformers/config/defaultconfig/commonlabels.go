@@ -144,19 +144,4 @@ commonLabels:
   create: false
   group: policy
   kind: PodDisruptionBudget
-
-- path: spec/podSelector/matchLabels
-  create: false
-  group: networking.k8s.io
-  kind: NetworkPolicy
-
-- path: spec/ingress/from/podSelector/matchLabels
-  create: false
-  group: networking.k8s.io
-  kind: NetworkPolicy
-
-- path: spec/egress/to/podSelector/matchLabels
-  create: false
-  group: networking.k8s.io
-  kind: NetworkPolicy
 `
