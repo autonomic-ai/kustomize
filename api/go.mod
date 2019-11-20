@@ -13,6 +13,7 @@ require (
 	golang.org/x/tools v0.0.0-20190912215617-3720d1ec3678
 	gopkg.in/yaml.v2 v2.2.4
 	k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
+	sigs.k8s.io/kustomize v2.0.3+incompatible
 	sigs.k8s.io/kustomize/pseudo/k8s v0.1.0
 	sigs.k8s.io/yaml v1.1.0
 )

@@ -5,6 +5,7 @@ package git
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -67,7 +68,12 @@ func (x *RepoSpec) AbsPath() string {
 }
 
 func (x *RepoSpec) Cleaner(fSys filesys.FileSystem) func() error {
-	return func() error { return fSys.RemoveAll(x.Dir.String()) }
+	return func() error {
+		if os.Getenv("KUSTOMIZE_DIR") != "" {
+			return nil
+		}
+		return fSys.RemoveAll(x.Dir.String())
+	}
 }
 
 // From strings like git@github.com:someOrg/someRepo.git or

@@ -5,8 +5,12 @@ package git
 
 import (
 	"bytes"
+	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"path"
+	"strings"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/kustomize/api/filesys"
@@ -23,10 +27,30 @@ func ClonerUsingGitExec(repoSpec *RepoSpec) error {
 	if err != nil {
 		return errors.Wrap(err, "no 'git' program on path")
 	}
-	repoSpec.Dir, err = filesys.NewTmpConfirmedDir()
-	if err != nil {
-		return err
+
+	kustomizeCache := os.Getenv("KUSTOMIZE_DIR")
+	var repoDir filesys.ConfirmedDir
+
+	if kustomizeCache == "" {
+		repoDir, err = filesys.NewTmpConfirmedDir()
+		if err != nil {
+			return err
+		}
+	} else {
+		dir := strings.ReplaceAll(fmt.Sprintf("%s_%s_%s_%s_%s", repoSpec.Host, repoSpec.OrgRepo, repoSpec.Path, repoSpec.Ref, repoSpec.GitSuffix), "/", "_")
+		repoDir = filesys.ConfirmedDir(path.Join(kustomizeCache, dir))
+		if _, err = os.Stat(string(repoDir)); !os.IsNotExist(err) {
+			repoSpec.Dir = repoDir
+			return nil
+		}
+
+		err = os.MkdirAll(string(repoDir), 0755)
+		if err != nil {
+			return err
+		}
 	}
+
+	repoSpec.Dir = repoDir
 	cmd := exec.Command(
 		gitProgram,
 		"init",
