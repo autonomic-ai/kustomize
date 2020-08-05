@@ -31,7 +31,7 @@ func ClonerUsingGitExec(repoSpec *RepoSpec) error {
 	kustomizeCache := os.Getenv("KUSTOMIZE_DIR")
 	var repoDir filesys.ConfirmedDir
 
-	if kustomizeCache == "" {
+	if kustomizeCache == "" || repoSpec.Ref == "master" {
 		repoDir, err = filesys.NewTmpConfirmedDir()
 		if err != nil {
 			return err
