@@ -1,22 +1,24 @@
-# Demo: applying a json patch
+# JSON Patching
 
-A kustomization file supports customizing resources via [JSON patches](https://tools.ietf.org/html/rfc6902).
+[JSON patches]: https://tools.ietf.org/html/rfc6902
+[JSON patch]: https://tools.ietf.org/html/rfc6902
 
-The example below modifies an `Ingress` object with such a patch.
+A kustomization file supports customizing
+resources via [JSON patches].
 
-Make a `kustomization` containing an ingress resource.
+Make a place to work:
 
-<!-- @createIngress @test -->
+<!-- @placeToWork @testAgainstLatestRelease -->
 ```
 DEMO_HOME=$(mktemp -d)
+```
 
-cat <<EOF >$DEMO_HOME/kustomization.yaml
-resources:
-- ingress.yaml
-EOF
+We'll be editing an `Ingress` object:
 
+<!-- @ingress @testAgainstLatestRelease -->
+```
 cat <<EOF >$DEMO_HOME/ingress.yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
   name: my-ingress
@@ -25,94 +27,175 @@ spec:
   - host: foo.bar.com
     http:
       paths:
-      - backend:
+      - path: /
+        backend:
+          serviceName: homepage
+          servicePort: 8888
+      - path: /api
+        backend:
           serviceName: my-api
-          servicePort: 80
+          servicePort: 7701
+      - path: /test
+        backend:
+          serviceName: hello
+          servicePort: 7702
 EOF
 ```
 
-Declare a JSON patch file to update two fields of the Ingress object:
+The edits we want to make are:
 
-- change host from `foo.bar.com` to `foo.bar.io`
-- change servicePort from `80` to `8080`
+ - change the value of `host` to _foo.bar.io_
+ - change the port for `'/'` from _8888_ to _80_
+ - insert an entirely new serving path `/healthz`
+   at a particular point in the `paths` list,
+   rather than at the end or the beginning.
 
-<!-- @addJsonPatch @test -->
+Here's the patch file to do that:
+
+<!-- @addJsonPatch @testAgainstLatestRelease -->
 ```
 cat <<EOF >$DEMO_HOME/ingress_patch.json
 [
-  {"op": "replace", "path": "/spec/rules/0/host", "value": "foo.bar.io"},
-  {"op": "replace", "path": "/spec/rules/0/http/paths/0/backend/servicePort", "value": 8080}
+  {"op": "replace",
+   "path": "/spec/rules/0/host",
+   "value": "foo.bar.io"},
+
+  {"op": "replace",
+   "path": "/spec/rules/0/http/paths/0/backend/servicePort",
+   "value": 80},
+
+  {"op": "add",
+   "path": "/spec/rules/0/http/paths/1",
+   "value": { "path": "/healthz", "backend": {"servicePort":7700} }}
 ]
 EOF
 ```
 
-You can also write the patch in YAML format. This example also shows the "add" operation:
+We'll of course need a `kustomization` file
+referring to the `Ingress`:
 
-<!-- @addYamlPatch @test -->
+<!-- @kustomization @testAgainstLatestRelease -->
+```
+cat <<EOF >$DEMO_HOME/kustomization.yaml
+resources:
+- ingress.yaml
+EOF
+```
+
+To this same `kustomization` file, add a
+`patches` field referring to
+the patch file we just made and
+target it to the `Ingress` object:
+
+<!-- @applyJsonPatch @testAgainstLatestRelease -->
+```
+cat <<EOF >>$DEMO_HOME/kustomization.yaml
+patches:
+- path: ingress_patch.json
+  target:
+    group: networking.k8s.io
+    version: v1beta1
+    kind: Ingress
+    name: my-ingress
+EOF
+```
+
+Define the expected output:
+<!-- @expected @testAgainstLatestRelease -->
+```
+cat <<EOF >$DEMO_HOME/out_expected.yaml
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  rules:
+  - host: foo.bar.io
+    http:
+      paths:
+      - backend:
+          serviceName: homepage
+          servicePort: 80
+        path: /
+      - backend:
+          servicePort: 7700
+        path: /healthz
+      - backend:
+          serviceName: my-api
+          servicePort: 7701
+        path: /api
+      - backend:
+          serviceName: hello
+          servicePort: 7702
+        path: /test
+EOF
+```
+
+Run the build:
+<!-- @runIt @testAgainstLatestRelease -->
+```
+kustomize build $DEMO_HOME >$DEMO_HOME/out_actual.yaml
+```
+
+Confirm they match:
+
+<!-- @diffShouldExitZero @testAgainstLatestRelease -->
+```
+diff $DEMO_HOME/out_actual.yaml $DEMO_HOME/out_expected.yaml
+```
+
+If you prefer YAML to JSON, the patch can be expressed
+in YAML format (nevertheless following [JSON patch] rules):
+
+<!-- @writeYamlPatch @testAgainstLatestRelease -->
 ```
 cat <<EOF >$DEMO_HOME/ingress_patch.yaml
-- op: replace
-  path: /spec/rules/0/host
-  value: foo.bar.io
-
 - op: add
   path: /spec/rules/0/http/paths/-
   value:
-    path: '/test'
+    path: '/canada'
     backend:
-      serviceName: my-test
-      servicePort: 8081
+      serviceName: hoser
+      servicePort: 7703
 EOF
 ```
 
-Apply the patch by adding _patchesJson6902_ field in kustomization.yaml
+Now add this to the list of patches in the `kustomization` file:
 
-<!-- @applyJsonPatch @test -->
+<!-- @addYamlPatch @testAgainstLatestRelease -->
 ```
 cat <<EOF >>$DEMO_HOME/kustomization.yaml
-patchesJson6902:
-- target:
-    group: extensions
+- path: ingress_patch.yaml
+  target:
+    group: networking.k8s.io
     version: v1beta1
     kind: Ingress
     name: my-ingress
-  path: ingress_patch.json
 EOF
 ```
 
-Running `kustomize build $DEMO_HOME`, in the output confirm that host has been updated correctly.
-<!-- @confirmHost @test -->
+We expect the following at the end of the output:
+<!-- @expected @testAgainstLatestRelease -->
 ```
-test 1 == \
-  $(kustomize build $DEMO_HOME | grep "host: foo.bar.io" | wc -l); \
-  echo $?
-```
-Running `kustomize build $DEMO_HOME`, in the output confirm that the servicePort has been updated correctly.
-<!-- @confirmServicePort @test -->
-```
-test 1 == \
-  $(kustomize build $DEMO_HOME | grep "servicePort: 8080" | wc -l); \
-  echo $?
-```
-
-If the patch is YAML-formatted, it will be parsed correctly:
-
-<!-- @applyYamlPatch @test -->
-```
-cat <<EOF >>$DEMO_HOME/kustomization.yaml
-patchesJson6902:
-- target:
-    group: extensions
-    version: v1beta1
-    kind: Ingress
-    name: my-ingress
-  path: ingress_patch.yaml
+cat <<EOF >$DEMO_HOME/out_expected.yaml
+      - backend:
+          serviceName: hello
+          servicePort: 7702
+        path: /test
+      - backend:
+          serviceName: hoser
+          servicePort: 7703
+        path: /canada
 EOF
 ```
 
-<!-- @confirmYamlPatch @test -->
+Try it:
+
+<!-- @runIt @testAgainstLatestRelease -->
 ```
-test 1 == \
-  $(kustomize build $DEMO_HOME | grep "path: /test" | wc -l); \
-  echo $?
+kustomize build $DEMO_HOME | tail -n 8 |\
+    diff  $DEMO_HOME/out_expected.yaml -
 ```
+
+To see how to apply one JSON patch to many resources,
+see the [multi-patch](patchMultipleObjects.md) demo.

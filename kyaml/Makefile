@@ -1,0 +1,46 @@
+# Copyright 2019 The Kubernetes Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+MYGOBIN = $(shell go env GOBIN)
+ifeq ($(MYGOBIN),)
+MYGOBIN = $(shell go env GOPATH)/bin
+endif
+export PATH := $(MYGOBIN):$(PATH)
+
+include ../Makefile-tools.mk
+
+.PHONY: generate fix vet fmt test lint tidy clean
+
+all: generate fix vet fmt test lint tidy
+
+k8sGenDir := yaml/internal/k8sgen/pkg
+
+generate:
+	go generate ./...
+
+clean:
+	rm -rf $(k8sGenDir)
+
+lint: $(GOLANGCI_LINT_PREREQUISITE)
+	"$(GOLANGCI_LINT)" \
+	  run ./... \
+	  --path-prefix=kyaml \
+	  -c ../.golangci.yml
+
+test:
+	go test -race -v -cover ./...
+
+fix:
+	go fix ./...
+
+fmt:
+	go fmt $(shell go list ./... | grep -v "/kyaml/internal/forked/github.com/go-yaml/yaml")
+
+tidy:
+	go mod tidy
+
+vet:
+	go vet $(shell go list ./... | grep -v "/kyaml/internal/forked/github.com/go-yaml/yaml")
+
+build:
+	go build -v ./...

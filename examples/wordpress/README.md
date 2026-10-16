@@ -8,7 +8,7 @@ To run WordPress, it's necessary to
 - access the service name of MySQL database from WordPress container
 
 First make a place to work:
-<!-- @makeDemoHome @test -->
+<!-- @makeDemoHome @testAgainstLatestRelease -->
 ```
 DEMO_HOME=$(mktemp -d)
 MYSQL_HOME=$DEMO_HOME/mysql
@@ -21,7 +21,7 @@ mkdir -p $WORDPRESS_HOME
 
 Download the resources and `kustomization.yaml` for WordPress.
 
-<!-- @downloadResources @test -->
+<!-- @downloadResources @testAgainstLatestRelease -->
 ```
 CONTENT="https://raw.githubusercontent.com\
 /kubernetes-sigs/kustomize\
@@ -33,7 +33,7 @@ curl -s -o "$WORDPRESS_HOME/#1.yaml" \
 
 Download the resources and `kustomization.yaml` for MySQL.
 
-<!-- @downloadResources @test -->
+<!-- @downloadResources @testAgainstLatestRelease -->
 ```
 CONTENT="https://raw.githubusercontent.com\
 /kubernetes-sigs/kustomize\
@@ -44,17 +44,19 @@ curl -s -o "$MYSQL_HOME/#1.yaml" \
 ```
 
 ### Create kustomization.yaml
-Create a new kustomization with two bases:
 
-<!-- @createKustomization @test -->
+Create a new kustomization with two bases,
+`wordpress` and `mysql`:
+
+<!-- @createKustomization @testAgainstLatestRelease -->
 ```
 cat <<EOF >$DEMO_HOME/kustomization.yaml
-bases:
-  - wordpress
-  - mysql
+resources:
+- wordpress
+- mysql
 namePrefix: demo-
-patchesStrategicMerge:
-  - patch.yaml
+patches:
+- path: patch.yaml
 EOF
 ```
 
@@ -63,7 +65,7 @@ In the new kustomization, apply a patch for wordpress deployment. The patch does
 - Add an initial container to show the mysql service name
 - Add environment variable that allow wordpress to find the mysql database
 
-<!-- @downloadPatch @test -->
+<!-- @downloadPatch @testAgainstLatestRelease -->
 ```
 CONTENT="https://raw.githubusercontent.com\
 /kubernetes-sigs/kustomize\
@@ -74,7 +76,7 @@ curl -s -o "$DEMO_HOME/#1.yaml" \
 ```
 The patch has following content
 > ```
-> apiVersion: apps/v1beta2
+> apiVersion: apps/v1
 > kind: Deployment
 > metadata:
 >   name: wordpress
@@ -84,9 +86,8 @@ The patch has following content
 >       initContainers:
 >       - name: init-command
 >         image: debian
->         command:
->         - "echo $(WORDPRESS_SERVICE)"
->         - "echo $(MYSQL_SERVICE)"
+>         command: ["/bin/sh"]
+>         args: ["-c", "echo $(WORDPRESS_SERVICE); echo $(MYSQL_SERVICE)"]
 >       containers:
 >       - name: wordpress
 >         env:
@@ -103,7 +104,7 @@ $(WORDPRESS_SERVICE) and $(MYSQL_SERVICE).
 
 ### Bind the Variables to k8s Object Fields
 
-<!-- @addVarRef @test -->
+<!-- @addVarRef @testAgainstLatestRelease -->
 ```
 cat <<EOF >>$DEMO_HOME/kustomization.yaml
 vars:
@@ -126,7 +127,7 @@ EOF
 ### Substitution
 Confirm the variable substitution:
 
-<!-- @kustomizeBuild @test -->
+<!-- @kustomizeBuild @testAgainstLatestRelease -->
 ```
 kustomize build $DEMO_HOME
 ```
@@ -136,11 +137,13 @@ Expect this in the output:
 > ```
 > (truncated)
 > ...
->      initContainers:
->      - command:
->        - echo demo-wordpress
->        - echo demo-mysql
->        image: debian
->        name: init-command
+>     initContainers:
+>     - args:
+>       - -c
+>       - echo demo-wordpress; echo demo-mysql
+>       command:
+>       - /bin/sh
+>       image: debian
+>       name: init-command
 >
 > ```

@@ -1,30 +1,141 @@
+# Copyright 2019 The Kubernetes Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+version: "2"
+
 run:
-  deadline: 5m
+  timeout: 5m
+  go: "1.27"
 
 linters:
-  disable-all: true
-  enable:
-    - dupl
-    - goconst
-    - gocyclo
-    - gofmt
-    - golint
-    - govet
-    - ineffassign
-    - interfacer
-    - lll
-    - misspell
-    - nakedret
-    - structcheck
-    - unparam
-    - varcheck
+  default: all
+  disable:
+    - arangolint
+    - clickhouselint
+    - embeddedstructfieldcheck
+    - funcorder
+    - godoclint
+    - iotamixing
+    - modernize
+    - noinlineerr
+    - unqueryvet
+    - gomodguard
+    - copyloopvar
+    - cyclop
+    - depguard
+    - err113
+    - exhaustruct
+    - exhaustruct_v5
+    - forbidigo
+    - funlen
+    - gocognit
+    - godot
+    - godox
+    - intrange
+    - ireturn
+    - maintidx
+    - mnd
+    - nilnil
+    - nlreturn
+    - noctx
+    - nonamedreturns
+    - paralleltest
+    - perfsprint
+    - testifylint
+    - testpackage # it's better to keep tests in the same package for now because kustomize does open box testing
+    - varnamelen
+    - wsl
+    - wsl_v5
+  settings:
+    dupl:
+      threshold: 400
+    gocyclo:
+      min-complexity: 30
+    goconst:
+      ignore-tests: true
+    gomoddirectives:
+      replace-local: true
+    gosec:
+      config:
+        G306: "0644"
+    lll:
+      line-length: 170
+    mnd:
+      ignored-functions:
+        - os.WriteFile
+        - make
+    revive:
+      rules:
+        - name: var-naming
+          arguments:
+            - ["ID", "API", "JSON"] # AllowList
+            - [] # DenyList
+    staticcheck:
+      # stylecheck was a separate disabled linter in v1. In v2 it is part of
+      # staticcheck, so exclude its ST checks to preserve the existing policy.
+      checks:
+        - all
+        - "-QF*"
+        - "-ST*"
+    usetesting:
+      # Preserve the os.Setenv check previously provided by tenv without
+      # enabling the additional checks introduced by usetesting.
+      os-create-temp: false
+      os-mkdir-temp: false
+      os-setenv: true
+      os-temp-dir: false
+      os-chdir: false
+      context-background: false
+      context-todo: false
+    wrapcheck:
+      ignore-sigs:
+        # defaults
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - .Wrap(
+        - .Wrapf(
+        - .WithMessage(
+        - .WithMessagef(
+        - .WithStack(
+        # from kyaml's errors package
+        - .WrapPrefixf(
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - revive
+        text: "don't use leading"
+      - linters:
+          - staticcheck
+        text: 'SA1019: .*kioutil\.Legacy'
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - (^|/)internal/forked/
+      - (^|/)yaml/internal/k8sgen/pkg/
+      - (^|/)internal/commands/internal/k8sgen/pkg/
 
-linters-settings:
-  dupl:
-    threshold: 400 
-  lll:   
-    line-length: 170
-  gocyclo:
-    min-complexity: 15
-  golint:
-    min-confidence: 0.85
+issues:
+  new-from-rev: c94b5d8f2 # enables us to enforce a larger set of linters for new code than pass on existing code
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - (^|/)internal/forked/
+      - (^|/)yaml/internal/k8sgen/pkg/
+      - (^|/)internal/commands/internal/k8sgen/pkg/
